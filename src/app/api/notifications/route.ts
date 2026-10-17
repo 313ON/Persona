@@ -1,0 +1,6 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/lib/db';
+import { currentUser } from '@/lib/auth';
+import { requestOriginAllowed, secureHeaders } from '@/lib/security';
+export async function GET() { const user = await currentUser(); if (!user) return NextResponse.json({ error: 'نیاز به ورود دارد' }, { status: 401, headers: secureHeaders }); const data = await db.notification.findMany({ where: { recipientId: user.id }, include: { event: { select: { action: true, employeeId: true, metadata: true, createdAt: true } } }, orderBy: { createdAt: 'desc' }, take: 50 }); return NextResponse.json({ data }, { headers: secureHeaders }); }
+export async function PATCH(req: NextRequest) { const user = await currentUser(); if (!user || !requestOriginAllowed(req)) return NextResponse.json({ error: 'دسترسی کافی نیست' }, { status: 403, headers: secureHeaders }); const body = await req.json().catch(() => ({})); const id = typeof body.id === 'string' ? body.id : ''; if (!id) return NextResponse.json({ error: 'شناسه الزامی است' }, { status: 400, headers: secureHeaders }); const data = await db.notification.updateMany({ where: { id, recipientId: user.id }, data: { readAt: new Date() } }); return NextResponse.json({ updated: data.count }, { headers: secureHeaders }); }

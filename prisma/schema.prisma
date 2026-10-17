@@ -1,0 +1,295 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  HR_MANAGER
+  MANAGER
+  EMPLOYEE
+  AUDITOR
+}
+
+enum EmploymentStatus {
+  ACTIVE
+  ON_LEAVE
+  TERMINATED
+  RETIRED
+}
+
+enum EmploymentType {
+  PERMANENT
+  CONTRACTOR
+  PART_TIME
+  TEMPORARY
+}
+
+enum DocumentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum AuditAction {
+  LOGIN_SUCCESS
+  LOGIN_FAILURE
+  PERSONNEL_CHANGE
+  DOCUMENT_UPLOAD
+  DOCUMENT_DOWNLOAD
+  PERMISSION_CHANGE
+  EXPORT
+  AUTHORIZATION_FAILURE
+  DOCUMENT_REPLACE
+  DOCUMENT_DELETE
+  DOCUMENT_RESTORE
+  SETTLEMENT_CHANGE
+  MILITARY_SERVICE_CHANGE
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  UNSPECIFIED
+}
+
+enum MilitaryServiceStatus {
+  COMPLETED
+  EXEMPT
+}
+
+enum SettlementStatus {
+  PENDING
+  COMPLETED
+}
+
+model User {
+  id               String            @id @default(cuid())
+  email            String            @unique
+  passwordHash     String
+  role             Role
+  employeeId       String?           @unique
+  isActive         Boolean           @default(true)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  employee         Employee?         @relation(fields: [employeeId], references: [id])
+  sessions         Session[]
+  documents        Document[]        @relation("DocumentUploader")
+  auditEvents      AuditEvent[]
+  notifications    Notification[]
+  deletedDocuments Document[]        @relation("DocumentDeleter")
+  documentVersions DocumentVersion[] @relation("DocumentVersionUploader")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model OrganizationalUnit {
+  id        String               @id @default(cuid())
+  name      String               @unique
+  code      String               @unique
+  employees Employee[]
+  parentId  String?
+  parent    OrganizationalUnit?  @relation("UnitTree", fields: [parentId], references: [id])
+  children  OrganizationalUnit[] @relation("UnitTree")
+}
+
+model Employee {
+  id                     String                 @id @default(cuid())
+  employeeNumber         String                 @unique
+  firstName              String
+  lastName               String
+  nationalId             String?                @unique
+  phone                  String?
+  email                  String?
+  fatherName             String?
+  birthPlace             String?
+  position               String?
+  terminationDate        DateTime?
+  address                String?
+  insuranceStartDate     DateTime?
+  insuranceEndDate       DateTime?
+  educationalInstitution String?
+  gender                 Gender?
+  militaryServiceStatus  MilitaryServiceStatus?
+  militaryServiceDate    DateTime?
+  militaryExemptionType  String?
+  educationLevel         String?
+  qualification          String?
+  fieldOfStudy           String?
+  insuranceNumber        String?
+  bankAccountNumber      String?
+  maritalStatus          String?
+  marriageDate           DateTime?
+  spouseName             String?
+  isActive               Boolean                @default(true)
+  supervisorId           String?
+  employmentStatus       EmploymentStatus       @default(ACTIVE)
+  employmentType         EmploymentType         @default(PERMANENT)
+  hireDate               DateTime?
+  birthDate              DateTime?
+  unitId                 String?
+  deletedAt              DateTime?
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+  user                   User?
+  unit                   OrganizationalUnit?    @relation(fields: [unitId], references: [id])
+  supervisor             Employee?              @relation("Supervision", fields: [supervisorId], references: [id])
+  reports                Employee[]             @relation("Supervision")
+  contracts              Contract[]
+  education              Education[]
+  documents              Document[]
+  corrections            CorrectionRequest[]
+  children               EmployeeChild[]
+  settlement             Settlement?
+
+  @@index([lastName, firstName])
+  @@index([unitId, employmentStatus])
+}
+
+model EmployeeChild {
+  id         String    @id @default(cuid())
+  employeeId String
+  name       String
+  birthDate  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  employee   Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+}
+
+model Contract {
+  id         String    @id @default(cuid())
+  employeeId String
+  startDate  DateTime
+  endDate    DateTime?
+  title      String
+  terms      String?
+  employee   Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([endDate])
+}
+
+model Education {
+  id          String    @id @default(cuid())
+  employeeId  String
+  institution String
+  field       String
+  degree      String
+  completedAt DateTime?
+  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+model Document {
+  id           String            @id @default(cuid())
+  employeeId   String
+  type         String
+  originalName String
+  storageName  String
+  mimeType     String
+  sizeBytes    Int
+  issueDate    DateTime?
+  expiryDate   DateTime?
+  status       DocumentStatus    @default(PENDING)
+  uploadedById String
+  createdAt    DateTime          @default(now())
+  deletedAt    DateTime?
+  deletedById  String?
+  settlementId String?
+  versions     DocumentVersion[]
+  employee     Employee          @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  uploadedBy   User              @relation("DocumentUploader", fields: [uploadedById], references: [id])
+  deletedBy    User?             @relation("DocumentDeleter", fields: [deletedById], references: [id], onDelete: SetNull)
+  settlement   Settlement?       @relation(fields: [settlementId], references: [id], onDelete: SetNull)
+
+  @@index([employeeId, expiryDate, status])
+}
+
+model DocumentVersion {
+  id           String   @id @default(cuid())
+  documentId   String
+  version      Int
+  originalName String
+  storageName  String
+  mimeType     String
+  sizeBytes    Int
+  uploadedById String
+  createdAt    DateTime @default(now())
+  document     Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  uploadedBy   User     @relation("DocumentVersionUploader", fields: [uploadedById], references: [id])
+
+  @@unique([documentId, version])
+  @@index([documentId, createdAt])
+}
+
+model Settlement {
+  id             String           @id @default(cuid())
+  employeeId     String           @unique
+  status         SettlementStatus @default(PENDING)
+  settlementDate DateTime?
+  notes          String?
+  amount         Decimal?         @db.Decimal(18, 2)
+  currency       String            @default("IRR")
+  documents      Document[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  employee       Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id          String     @id @default(cuid())
+  eventId     String
+  recipientId String
+  readAt      DateTime?
+  createdAt   DateTime   @default(now())
+  event       AuditEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  recipient   User       @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, recipientId])
+  @@index([recipientId, readAt, createdAt])
+}
+
+model CorrectionRequest {
+  id            String    @id @default(cuid())
+  employeeId    String
+  fieldName     String
+  proposedValue String
+  reason        String
+  status        String    @default("PENDING")
+  createdAt     DateTime  @default(now())
+  resolvedAt    DateTime?
+  employee      Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId, status])
+}
+
+model AuditEvent {
+  id            String         @id @default(cuid())
+  action        AuditAction
+  actorUserId   String?
+  employeeId    String?
+  success       Boolean
+  metadata      Json?
+  ipAddress     String?
+  createdAt     DateTime       @default(now())
+  actor         User?          @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  notifications Notification[]
+
+  @@index([createdAt, action])
+  @@index([employeeId, createdAt])
+}

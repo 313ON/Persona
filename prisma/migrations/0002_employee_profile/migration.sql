@@ -1,0 +1,5 @@
+-- Safe employee profile extension; preserves existing rows and keys
+ALTER TABLE "public"."Employee" ADD COLUMN "fatherName" TEXT, ADD COLUMN "birthPlace" TEXT, ADD COLUMN "terminationDate" TIMESTAMP(3), ADD COLUMN "educationLevel" TEXT, ADD COLUMN "qualification" TEXT, ADD COLUMN "fieldOfStudy" TEXT, ADD COLUMN "insuranceNumber" TEXT, ADD COLUMN "bankAccountNumber" TEXT, ADD COLUMN "maritalStatus" TEXT, ADD COLUMN "marriageDate" TIMESTAMP(3), ADD COLUMN "spouseName" TEXT, ADD COLUMN "isActive" BOOLEAN NOT NULL DEFAULT true;
+CREATE TABLE "public"."EmployeeChild" ("id" TEXT NOT NULL, "employeeId" TEXT NOT NULL, "name" TEXT NOT NULL, "birthDate" TIMESTAMP(3), "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL, CONSTRAINT "EmployeeChild_pkey" PRIMARY KEY ("id"));
+CREATE INDEX "EmployeeChild_employeeId_idx" ON "public"."EmployeeChild"("employeeId");
+ALTER TABLE "public"."EmployeeChild" ADD CONSTRAINT "EmployeeChild_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "public"."Employee"("id") ON DELETE CASCADE ON UPDATE CASCADE;
